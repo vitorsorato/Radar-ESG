@@ -1,0 +1,18 @@
+# Large or generated content
+outputs/**
+*.pdf
+
+# Artifacts and logs
+*.log
+.mypy_cache/**
+.pytest_cache/**
+dist/**
+build/**
+
+# Environments
+.venv/**
+venv/**
+
+# Caches
+__pycache__/**
+*.pyc

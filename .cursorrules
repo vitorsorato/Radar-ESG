@@ -1,0 +1,27 @@
+project:
+  goals:
+    - Simplified CLI for PDF generation (news/reports)
+    - Beautiful, readable PDF output with sentiment cues
+    - Clear README with quickstart and unified commands
+  conventions:
+    - Keep CLI defaults sensible; prefer optional overrides
+    - Avoid heavy dependencies unless guarded behind optional installs
+    - Use `outputs/` for generated artifacts
+  editor:
+    indexing:
+      ignore:
+        - outputs/**
+        - .venv/**
+        - venv/**
+        - __pycache__/**
+        - *.pdf
+    prompts:
+      style:
+        prefer_language: pt-BR
+        code_blocks: concise
+        summaries: bullet-first
+  testing:
+    notes:
+      - Sentiment models are optional; lexicon fallback is acceptable in CI
+      - PDF generation should not require network access
+

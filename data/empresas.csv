@@ -1,0 +1,6 @@
+name,regex
+Petrobras,
+Vale,
+Bradesco,
+Itaú Unibanco,"Ita[uú]|Itaú Unibanco"
+Ambev,

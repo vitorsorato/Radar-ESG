@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.env
+
+outputs/
+
+# Project outputs
+outputs/
+*.pdf
+
+# OS
+.DS_Store
