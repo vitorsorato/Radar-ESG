@@ -8,6 +8,7 @@ from .scraper import scrape_news
 from .sentiment import SentimentAnalyzer
 from .pdf_utils import extract_text_from_pdf
 from .report_pdf import AnalysisPDF
+from .pdf_sentiment_processor import PDFSentimentProcessor
 
 
 def _ensure_dir_exists(path: str) -> None:
@@ -197,6 +198,37 @@ def cmd_reports_pdf(args: argparse.Namespace) -> None:
     print(f"PDF gerado em: {args.output_pdf}")
 
 
+def cmd_analyze_pdf_sentiment(args: argparse.Namespace) -> None:
+    """Analisa sentimento de PDFs usando léxico de palavras positivas/negativas."""
+    processor = PDFSentimentProcessor(
+        positive_words_path=args.positive_words,
+        negative_words_path=args.negative_words
+    )
+    
+    # Processa todos os PDFs
+    results = processor.process_all_pdfs(args.reports_dir)
+    
+    if not results:
+        print("Nenhum PDF foi processado com sucesso.")
+        return
+    
+    # Salva os resultados
+    saved_files = processor.save_results(
+        results, 
+        output_dir=args.output_dir
+    )
+    
+    # Exibe resumo
+    summary = processor.generate_report_summary(results)
+    print(f"\n=== RESUMO DA ANÁLISE ===")
+    print(f"Total de arquivos processados: {summary['total_files']}")
+    print(f"Média de palavras positivas: {summary['avg_positive']:.6f}")
+    print(f"Média de palavras negativas: {summary['avg_negative']:.6f}")
+    print(f"Total de palavras processadas: {summary['total_words_processed']}")
+    print(f"Total de palavras positivas encontradas: {summary['total_positive_count']}")
+    print(f"Total de palavras negativas encontradas: {summary['total_negative_count']}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CLI - Scraping e Análise de Sentimento")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -309,6 +341,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_updf.set_defaults(func=_cmd_unified_pdf)
 
+    # analyze-pdf-sentiment (lexicon-based sentiment analysis)
+    p_sentiment = sub.add_parser("analyze-pdf-sentiment", help="Analisa sentimento de PDFs usando léxico de palavras positivas/negativas")
+    p_sentiment.add_argument("--reports-dir", default="relatorios_empresas", help="Diretório com arquivos PDF")
+    p_sentiment.add_argument("--positive-words", default="data/palavras_positivas.csv", help="Arquivo CSV com palavras positivas")
+    p_sentiment.add_argument("--negative-words", default="data/palavras_negativas.csv", help="Arquivo CSV com palavras negativas")
+    p_sentiment.add_argument("--output-dir", default="outputs", help="Diretório de saída")
+    p_sentiment.set_defaults(func=cmd_analyze_pdf_sentiment)
+
     # run (super simple command)
     p_run = sub.add_parser("run", help="Comando simples: gera relatório de notícias")
     p_run.set_defaults(func=lambda args: cmd_news_pdf(argparse.Namespace(
@@ -327,6 +367,15 @@ def build_parser() -> argparse.ArgumentParser:
         feed_item_limit=160,
         limit=30,
         title=None
+    )))
+
+    # analyze-sentiment (comando simples para análise de sentimento)
+    p_sentiment_simple = sub.add_parser("analyze-sentiment", help="Comando simples: analisa sentimento de todos os PDFs em relatorios_empresas")
+    p_sentiment_simple.set_defaults(func=lambda args: cmd_analyze_pdf_sentiment(argparse.Namespace(
+        reports_dir="relatorios_empresas",
+        positive_words="data/palavras_positivas.csv",
+        negative_words="data/palavras_negativas.csv",
+        output_dir="outputs"
     )))
 
     return parser
