@@ -1,0 +1,13 @@
+[project]
+name = "dissertacao-csr-analyzer"
+
+[services.csr_worker]
+name = "csr-worker"
+start = "python -m csr_analyzer.cli pdf"
+restartPolicyType = "ON_FAILURE"
+
+[deploy]
+healthcheckPath = "/"
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+
