@@ -121,12 +121,16 @@ def index():
         setTimeout(() => { document.getElementById('progress').style.display = 'none'; document.getElementById('bar').style.width = '0%'; ptext.style.display = 'none'; ptext.textContent=''; }, 800);
       }
     }
-    // Atualiza contador de arquivos
-    const fileInput = document.getElementById('file-input');
-    const fileCount = document.getElementById('file-count');
-    fileInput.addEventListener('change', () => {
-      const n = fileInput.files.length;
-      fileCount.textContent = n ? `${n} arquivo(s) selecionado(s)` : 'Nenhum arquivo selecionado';
+    // Atualiza contador de arquivos (após DOM pronto)
+    window.addEventListener('DOMContentLoaded', () => {
+      const fileInput = document.getElementById('file-input');
+      const fileCount = document.getElementById('file-count');
+      if (!fileInput || !fileCount) return;
+      const update = () => {
+        const n = fileInput.files ? fileInput.files.length : 0;
+        fileCount.textContent = n ? `${n} arquivo(s) selecionado(s)` : 'Nenhum arquivo selecionado';
+      };
+      fileInput.addEventListener('change', update);
     });
   </script>
   </head>
