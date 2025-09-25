@@ -164,6 +164,11 @@ def index():
 """
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.post("/analyze")
 async def analyze(files: List[UploadFile] = File(...)):
     # Salva uploads em uma pasta temporária dentro de outputs/uploads

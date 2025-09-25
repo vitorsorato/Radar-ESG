@@ -3,11 +3,11 @@ name = "dissertacao-csr-analyzer"
 
 [services.web]
 name = "web"
-start = "uvicorn csr_analyzer.web_app:app --host 0.0.0.0 --port 8000"
+start = "python -c \"import os; port=os.environ.get('PORT','8000'); import uvicorn; uvicorn.run('csr_analyzer.web_app:app', host='0.0.0.0', port=int(port))\""
 restartPolicyType = "ON_FAILURE"
 
 [deploy]
-healthcheckPath = "/"
+healthcheckPath = "/health"
 numReplicas = 1
 restartPolicyType = "ON_FAILURE"
 
