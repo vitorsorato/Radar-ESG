@@ -109,10 +109,13 @@ def index():
         zip.href = json.downloads.zip;
 
         // Auto download se marcado
-        const auto = document.getElementById('auto');
-        if (auto.checked) {
+        const autoCsv = document.getElementById('auto-csv');
+        const autoZip = document.getElementById('auto-zip');
+        if (autoCsv && autoCsv.checked) {
           const a1 = document.createElement('a'); a1.href = geral.href; a1.download = '';
           document.body.appendChild(a1); a1.click(); a1.remove();
+        }
+        if (autoZip && autoZip.checked) {
           const a2 = document.createElement('a'); a2.href = zip.href; a2.download = '';
           document.body.appendChild(a2); a2.click(); a2.remove();
         }
@@ -214,7 +217,7 @@ def index():
 <body>
   <div class=\"container\">
     <div class=\"card\">
-      <h1>Envie PDFs para análise</h1>
+      <h1>Análise de Sentimento de PDFs (gera CSV consolidado e ZIP)</h1>
       <p class=\"muted\">Envie um ou mais PDFs. Geramos o \"resultado_geral.csv\" e um pacote ZIP com as pastas individuais.</p>
       <form id=\"upload-form\" onsubmit=\"submitForm(event)\"> 
         <div class=\"field\"> 
@@ -225,8 +228,9 @@ def index():
           <input id=\"file-input\" type=\"file\" name=\"files\" accept=\"application/pdf,text/plain\" multiple required style=\"display:none\" />
           <span id=\"file-count\" class=\"muted\" style=\"margin-left:10px\">Nenhum arquivo selecionado</span>
         </div>
-        <div class=\"row\">
-          <label class=\"muted\"><input type=\"checkbox\" id=\"auto\" checked /> Baixar arquivos automaticamente</label>
+        <div class=\"row\"> 
+          <label class=\"muted\"><input type=\"checkbox\" id=\"auto-csv\" checked /> Baixar CSV automaticamente</label>
+          <label class=\"muted\"><input type=\"checkbox\" id=\"auto-zip\" /> Baixar ZIP automaticamente</label>
           <span id=\"spinner\" class=\"spinner\"></span>
           <div id=\"progress\" class=\"progress\" style=\"flex:1\"><div id=\"bar\" class=\"bar\"></div></div>
           <span id=\"progress-text\" class=\"progress-text\"></span>
