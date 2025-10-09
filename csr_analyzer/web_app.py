@@ -4,8 +4,10 @@ from typing import List
 from pathlib import Path
 import shutil
 import zipfile
+import re
 
 from .pdf_sentiment_processor import PDFSentimentProcessor
+from .pdf_utils import extract_text_from_pdf
 
 
 app = FastAPI(title="CSR Analyzer - Web")
@@ -132,6 +134,81 @@ def index():
       };
       fileInput.addEventListener('change', update);
     });
+    
+    // ======== FOG (legibilidade) ========
+    async function submitFog(e) {
+      e.preventDefault();
+      const form = document.getElementById('fog-form');
+      const files = form.querySelector('input[name="files"]').files;
+      if (!files.length) { alert('Selecione ao menos um arquivo.'); return; }
+      const data = new FormData(form);
+
+      const totalBytes = Array.from(files).reduce((s, f) => s + (f.size||0), 0);
+      const totalMB = (totalBytes / (1024*1024)).toFixed(2);
+
+      document.getElementById('fog-spinner').style.display = 'inline-block';
+      document.getElementById('fog-progress').style.display = 'block';
+      document.getElementById('fog-bar').style.width = '5%';
+      const fptext = document.getElementById('fog-progress-text');
+      fptext.style.display = 'inline-block';
+      document.getElementById('fog-actions').style.display = 'none';
+      document.getElementById('fog-result').textContent = 'Enviando e processando ' + files.length + ' arquivo(s) — ' + totalMB + ' MB';
+
+      try {
+        const json = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/analyze-fog');
+          xhr.responseType = 'json';
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const uploadedMB = (e.loaded / (1024*1024)).toFixed(2);
+              const percent = Math.min(95, Math.max(10, Math.round((e.loaded / e.total) * 80)));
+              document.getElementById('fog-bar').style.width = percent + '%';
+              fptext.textContent = `Upload: ${uploadedMB} / ${totalMB} MB`;
+            }
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(xhr.response);
+            } else {
+              reject(new Error('Falha no cálculo'));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Erro de rede'));
+          xhr.send(data);
+        });
+        document.getElementById('fog-bar').style.width = '100%';
+        fptext.textContent = 'Concluído';
+
+        const pre = document.getElementById('fog-result');
+        pre.textContent = JSON.stringify(json, null, 2);
+
+        const actions = document.getElementById('fog-actions');
+        actions.style.display = 'flex';
+        const fogcsv = document.getElementById('btn-fog-csv');
+        fogcsv.href = json.downloads.csv;
+
+        if (document.getElementById('fog-auto').checked) {
+          const a = document.createElement('a'); a.href = fogcsv.href; a.download = ''; document.body.appendChild(a); a.click(); a.remove();
+        }
+      } catch (err) {
+        document.getElementById('fog-result').textContent = 'Erro: ' + err.message;
+      } finally {
+        document.getElementById('fog-spinner').style.display = 'none';
+        setTimeout(() => { document.getElementById('fog-progress').style.display = 'none'; document.getElementById('fog-bar').style.width = '0%'; fptext.style.display = 'none'; fptext.textContent=''; }, 800);
+      }
+    }
+    // contador FOG
+    window.addEventListener('DOMContentLoaded', () => {
+      const input = document.getElementById('fog-file-input');
+      const label = document.getElementById('fog-file-count');
+      if (!input || !label) return;
+      const update = () => {
+        const n = input.files ? input.files.length : 0;
+        label.textContent = n ? `${n} arquivo(s) selecionado(s)` : 'Nenhum arquivo selecionado';
+      };
+      input.addEventListener('change', update);
+    });
   </script>
   </head>
 <body>
@@ -161,6 +238,31 @@ def index():
         <a id=\"btn-zip\" class=\"button\" href=\"#\">Baixar ZIP dos resultados</a>
       </div>
       <pre id=\"result\" style=\"margin-top:1rem; background:#f9fafb; padding:1rem; border-radius:8px; overflow:auto; max-height:300px;\"></pre>
+    </div>
+    <div class=\"card\" style=\"margin-top:20px\"> 
+      <h1>Índice Gunning Fog (legibilidade)</h1>
+      <p class=\"muted\">Envie PDFs ou TXTs. Calculamos palavras, sentenças, palavras complexas (≥3 sílabas) e o índice Fog.</p>
+      <form id=\"fog-form\" onsubmit=\"submitFog(event)\"> 
+        <div class=\"field\"> 
+          <label for=\"fog-file-input\" class=\"btn btn-primary\">
+            <svg class=\"icon\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M12 16V4m0 12l-3.5-3.5M12 16l3.5-3.5M6 20h12\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>
+            Escolher arquivos
+          </label>
+          <input id=\"fog-file-input\" type=\"file\" name=\"files\" accept=\"application/pdf,text/plain\" multiple required style=\"display:none\" />
+          <span id=\"fog-file-count\" class=\"muted\" style=\"margin-left:10px\">Nenhum arquivo selecionado</span>
+        </div>
+        <div class=\"row\"> 
+          <label class=\"muted\"><input type=\"checkbox\" id=\"fog-auto\" checked /> Baixar CSV automaticamente</label>
+          <span id=\"fog-spinner\" class=\"spinner\"></span>
+          <div id=\"fog-progress\" class=\"progress\" style=\"flex:1\"><div id=\"fog-bar\" class=\"bar\"></div></div>
+          <span id=\"fog-progress-text\" class=\"progress-text\"></span>
+          <button type=\"submit\">Calcular Fog</button>
+        </div>
+      </form>
+      <div id=\"fog-actions\" class=\"actions\" style=\"margin-top:12px\"> 
+        <a id=\"btn-fog-csv\" class=\"button\" href=\"#\">Baixar fog_resultados.csv</a>
+      </div>
+      <pre id=\"fog-result\" style=\"margin-top:1rem; background:#f9fafb; padding:1rem; border-radius:8px; overflow:auto; max-height:300px;\"></pre>
     </div>
   </div>
 </body>
@@ -239,9 +341,98 @@ async def analyze(files: List[UploadFile] = File(...)):
     })
 
 
+def _tokenize_words(text: str) -> List[str]:
+    return re.findall(r"[\wÀ-ÖØ-öø-ÿ]+", text, flags=re.UNICODE)
+
+
+def _split_sentences(text: str) -> List[str]:
+    parts = re.split(r"[\.!?]+\s*", text)
+    return [p for p in parts if p.strip()]
+
+
+def _count_syllables(word: str) -> int:
+    # Heurística simples baseada em grupos de vogais (pt-BR)
+    w = word.lower()
+    groups = re.findall(r"[aeiouáéíóúâêôãõü]+", w)
+    return max(1, len(groups))
+
+
+def _compute_fog_index(words: int, sentences: int, tokens: List[str]) -> float:
+    if sentences == 0 or words == 0:
+        return 0.0
+    complex_words = sum(1 for w in tokens if _count_syllables(w) >= 3)
+    avg_words_per_sentence = words / sentences
+    percent_complex = (complex_words / words) * 100
+    return 0.4 * (avg_words_per_sentence + percent_complex)
+
+
+@app.post("/analyze-fog")
+async def analyze_fog(files: List[UploadFile] = File(...)):
+    uploads_root = Path("outputs/uploads")
+    _ensure_dir(uploads_root)
+    temp_dir = uploads_root / "fog_session"
+    if temp_dir.exists():
+        for p in temp_dir.rglob("*"):
+            if p.is_file():
+                p.unlink(missing_ok=True)
+    _ensure_dir(temp_dir)
+
+    saved_paths = []
+    for f in files:
+        dest = temp_dir / f.filename
+        with dest.open("wb") as w:
+            shutil.copyfileobj(f.file, w)
+        saved_paths.append(dest)
+
+    rows = []
+    for path in saved_paths:
+        text = ""
+        pstr = str(path).lower()
+        if pstr.endswith(".txt"):
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                text = ""
+        elif pstr.endswith(".pdf"):
+            text = extract_text_from_pdf(str(path))
+        tokens = _tokenize_words(text)
+        sentences = len(_split_sentences(text))
+        words = len(tokens)
+        fog = _compute_fog_index(words, sentences, tokens)
+        complex_words = sum(1 for w in tokens if _count_syllables(w) >= 3)
+        rows.append({
+            "arquivo": path.name,
+            "palavras": words,
+            "sentencas": sentences,
+            "palavras_complexas": complex_words,
+            "fog_index": round(fog, 2)
+        })
+
+    # Salva CSV consolidado
+    out_dir = Path("outputs")
+    _ensure_dir(out_dir)
+    fog_csv = out_dir / "fog_resultados.csv"
+    try:
+        import csv
+        with fog_csv.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["Arquivo", "Palavras", "Sentencas", "Palavras_Complexas", "Fog_Index"]) 
+            for r in rows:
+                w.writerow([r["arquivo"], r["palavras"], r["sentencas"], r["palavras_complexas"], f"{r['fog_index']:.2f}"])
+    except Exception:
+        pass
+
+    return JSONResponse({
+        "total_files": len(rows),
+        "results": rows,
+        "downloads": {
+            "csv": f"/download/fog_resultados.csv?output_dir={out_dir}"
+        }
+    })
+
 @app.get("/download/{filename}")
 def download_file(filename: str, output_dir: str = "outputs"):
-    allowed = {"resultado_geral.csv", "analise_resultados.zip"}
+    allowed = {"resultado_geral.csv", "analise_resultados.zip", "fog_resultados.csv"}
     if filename not in allowed:
         raise HTTPException(status_code=404, detail="Arquivo não permitido")
     base = Path(output_dir)
